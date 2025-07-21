@@ -1,20 +1,20 @@
-const express = require("express");
+const express = require('express');
 const router = express.Router();
-const Tape = require("../models/Tape");
-const mongoose = require("mongoose");
-const { GoogleGenerativeAI } = require("@google/generative-ai");
-const { google } = require("googleapis");
+const Tape = require('../models/Tape');
+const mongoose = require('mongoose');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { google } = require('googleapis');
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 const youtube = google.youtube({
-  version: "v3",
+  version: 'v3',
   auth: process.env.YOUTUBE_API_KEY,
 });
 
 // Helper to extract JSON from markdown
 function extractJSON(text) {
-  return text.replace(/```json|```/g, "").trim();
+  return text.replace(/```json|```/g, '').trim();
 }
 
 // Helper to get YouTube video with max views
@@ -22,10 +22,12 @@ async function getTopYouTubeVideo(songTitle, artist) {
   const query = `${songTitle} ${artist} official audio`;
 
   const res = await youtube.search.list({
-    part: "snippet",
+    part: 'snippet',
     q: query,
-    type: "video",
+    type: 'video',
     maxResults: 5,
+    videoEmbeddable: 'true',
+    videoSyndicated: 'true',
   });
 
   if (!res.data.items.length) return null;
@@ -33,8 +35,8 @@ async function getTopYouTubeVideo(songTitle, artist) {
   const videoIds = res.data.items.map((item) => item.id.videoId);
 
   const statsRes = await youtube.videos.list({
-    part: "statistics",
-    id: videoIds.join(","),
+    part: 'statistics',
+    id: videoIds.join(','),
   });
 
   let topVideo = null;
@@ -52,16 +54,16 @@ async function getTopYouTubeVideo(songTitle, artist) {
 }
 
 // Mixtape generate route
-router.post("/generate", async (req, res) => {
+router.post('/generate', async (req, res) => {
   const { prompt, name } = req.body;
 
   try {
     const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash-latest",
+      model: 'gemini-1.5-flash-latest',
     });
 
     const geminiPrompt = `
-    Generate a list of 5 popular songs that match this mood:
+    Generate a list of 7 popular songs that match this mood:
     "${prompt}"
 
     Respond ONLY in pure JSON (no markdown) like this:
@@ -90,7 +92,7 @@ router.post("/generate", async (req, res) => {
     }
 
     const newTape = new Tape({
-      name: name || "Generated Mixtape",
+      name: name || 'For You',
       urls,
     });
 
@@ -99,21 +101,21 @@ router.post("/generate", async (req, res) => {
     res.status(201).json(saved);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to generate mixtape" });
+    res.status(500).json({ error: 'Failed to generate mixtape' });
   }
 });
 // GET all tapes
-router.get("/:id", async (req, res) => {
+router.get('/:id', async (req, res) => {
   const { id } = req.params;
   // Check for valid MongoDB ObjectId
   if (!mongoose.Types.ObjectId.isValid(id)) {
-    return res.status(400).json({ error: "Invalid tape ID format" });
+    return res.status(400).json({ error: 'Invalid tape ID format' });
   }
 
   try {
     const tape = await Tape.findById(id);
     if (!tape) {
-      return res.status(404).json({ error: "Tape not found" });
+      return res.status(404).json({ error: 'Tape not found' });
     }
     res.json(tape);
   } catch (err) {
@@ -121,7 +123,7 @@ router.get("/:id", async (req, res) => {
   }
 });
 // POST a new tape
-router.post("/", async (req, res) => {
+router.post('/', async (req, res) => {
   try {
     const { name, urls } = req.body;
     const newTape = new Tape({ name, urls });
